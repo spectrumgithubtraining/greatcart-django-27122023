@@ -89,10 +89,80 @@ def place_order(request, total=0, quantity=0):
 
     else:
         return redirect('checkout')
+# from django.shortcuts import render
+# from django.http import JsonResponse
+# from django.views.decorators.csrf import csrf_exempt
+# from .models import Payment, Order
+# @csrf_exempt
+# def handle_payment_success(request):
+#     if request.method == 'POST':
+#         razorpay_response = request.POST
+#         razorpay_order_id = razorpay_response.get('razorpay_order_id')
+#         razorpay_payment_id = razorpay_response.get('razorpay_payment_id')
+#         razorpay_signature = razorpay_response.get('razorpay_signature')
+
+#         # Verify the Razorpay signature here if needed
+
+#         # Get payment details from Razorpay
+#         try:
+#             payment = client.payment.fetch(razorpay_payment_id)
+#             print("Payment *************************:", payment)
+#             payment_status = payment['status']
+#             print("Payment Status:***************************88", payment_status)
+#             print("Payment ID***********************8", razorpay_payment_id)
+
+#             # Add your logic to update the order status or perform other actions based on payment_status
+#             # For example, update the order status in your database
+
+#             # Update Payment model with payment ID and status
+#             payment_instance, created = Payment.objects.get_or_create(
+#                 payment_id=razorpay_payment_id,
+#                 defaults={
+#                     'user': request.user,
+#                     'payment_method': 'Razorpay',  # Set the payment method as needed
+#                     'amount_paid': payment['amount'],
+#                     'status': payment_status,
+#                 }
+#             )
+#             print("Payment instance******************************", payment_instance)
+
+#             # Update Order model with payment and status
+#             try:
+#                 # Try to retrieve the order from the database
+#                 order = Order.objects.get(order_number=razorpay_order_id)
+#                 order.payment = payment_instance
+#                 order.status = 'Accepted'  # Set the order status as needed
+#                 order.is_ordered = True
+#                 order.save()
+#                 print("Order payment******************************", order.payment)
+#             except Order.DoesNotExist:
+#                 print(f"Order with order number {razorpay_order_id} does not exist.")
+
+#                 # Create a context dictionary to pass data to the template
+#                 context = {
+#                     'payment_status': payment_status,
+#                     'payment_id': razorpay_payment_id,
+#                     'order_not_found': True,  # Add a flag to indicate order not found
+#                 }
+#                 return render(request, 'orders/payment_success.html', context)
+
+#         except razorpay.errors.BadRequestError as e:
+#             return JsonResponse({'message': f'Razorpay Error: {str(e)}'}, status=500)
+
+#     else:
+#         return JsonResponse({'message': 'Invalid request method'})
+
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import Payment, Order
+import razorpay
+
+# Import other necessary modules and settings
+
+client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+
 @csrf_exempt
 def handle_payment_success(request):
     if request.method == 'POST':
@@ -106,13 +176,7 @@ def handle_payment_success(request):
         # Get payment details from Razorpay
         try:
             payment = client.payment.fetch(razorpay_payment_id)
-            print("Payment *************************:", payment)
             payment_status = payment['status']
-            print("Payment Status:***************************88", payment_status)
-            print("Payment ID***********************8", razorpay_payment_id)
-
-            # Add your logic to update the order status or perform other actions based on payment_status
-            # For example, update the order status in your database
 
             # Update Payment model with payment ID and status
             payment_instance, created = Payment.objects.get_or_create(
@@ -124,7 +188,6 @@ def handle_payment_success(request):
                     'status': payment_status,
                 }
             )
-            print("Payment instance******************************", payment_instance)
 
             # Update Order model with payment and status
             try:
@@ -134,20 +197,24 @@ def handle_payment_success(request):
                 order.status = 'Accepted'  # Set the order status as needed
                 order.is_ordered = True
                 order.save()
-                print("Order payment******************************", order.payment)
-            except Order.DoesNotExist:
-                print(f"Order with order number {razorpay_order_id} does not exist.")
 
-                # Create a context dictionary to pass data to the template
+                # Pass order details to the template
                 context = {
                     'payment_status': payment_status,
                     'payment_id': razorpay_payment_id,
-                    'order_not_found': True,  # Add a flag to indicate order not found
+                    'order': order,  # Pass the order object to the template
                 }
+
+                # Add this print statement to check the context
+                print("Context:", context)
+
                 return render(request, 'orders/payment_success.html', context)
 
-        except razorpay.errors.BadRequestError as e:
-            return JsonResponse({'message': f'Razorpay Error: {str(e)}'}, status=500)
+            except razorpay.errors.BadRequestError as e:
+                return JsonResponse({'message': f'Razorpay Error: {str(e)}'}, status=500)
+
+        except Exception as e:
+            return JsonResponse({'message': f'Error: {str(e)}'}, status=500)
 
     else:
         return JsonResponse({'message': 'Invalid request method'})
